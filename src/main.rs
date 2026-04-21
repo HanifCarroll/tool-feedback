@@ -1,6 +1,7 @@
 mod config;
 mod daemon;
 mod maintainer;
+mod ops;
 mod owners;
 mod state;
 mod telegram;
@@ -11,6 +12,7 @@ use config::{
     TelegramConfig, load_or_default_config, redacted_config_value, resolve_telegram_bot_token,
     write_config, write_telegram_bot_token,
 };
+use ops::{InstallOptions, LaunchdInstallOptions, LaunchdRenderOptions};
 use serde_json::json;
 use std::time::Duration;
 
@@ -28,6 +30,15 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    Doctor,
+    Install {
+        #[arg(long)]
+        dest: Option<String>,
+    },
+    Launchd {
+        #[command(subcommand)]
+        command: LaunchdCommand,
+    },
     Telegram {
         #[command(subcommand)]
         command: TelegramCommand,
@@ -139,6 +150,38 @@ enum DaemonCommand {
 }
 
 #[derive(Debug, Subcommand)]
+enum LaunchdCommand {
+    Render {
+        #[arg(long, default_value = ops::default_launchd_label())]
+        label: String,
+        #[arg(long)]
+        repo: Option<String>,
+        #[arg(long)]
+        bin: Option<String>,
+        #[arg(long)]
+        path: Option<String>,
+        #[arg(long = "state-dir")]
+        state_dir: Option<String>,
+        #[arg(long)]
+        output: Option<String>,
+    },
+    Install {
+        #[arg(long, default_value = ops::default_launchd_label())]
+        label: String,
+        #[arg(long)]
+        repo: Option<String>,
+        #[arg(long)]
+        bin: Option<String>,
+        #[arg(long)]
+        path: Option<String>,
+        #[arg(long = "state-dir")]
+        state_dir: Option<String>,
+        #[arg(long, default_value_t = false)]
+        no_bootstrap: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
 enum OwnerCommand {
     Init {
         #[arg(long)]
@@ -175,6 +218,9 @@ fn main() {
 fn run() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
+        Command::Doctor => run_doctor(),
+        Command::Install { dest } => run_install(dest),
+        Command::Launchd { command } => run_launchd(command),
         Command::Telegram { command } => run_telegram(command),
         Command::Notify { command } => run_notify(command),
         Command::Submit(args) => run_submit(args),
@@ -183,6 +229,19 @@ fn run() -> Result<()> {
         Command::Run { command } => run_run(command),
         Command::Daemon { command } => run_daemon_command(command),
     }
+}
+
+fn run_doctor() -> Result<()> {
+    println!("{}", serde_json::to_string_pretty(&ops::doctor()?)?);
+    Ok(())
+}
+
+fn run_install(dest: Option<String>) -> Result<()> {
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&ops::install_binary(InstallOptions { dest })?)?
+    );
+    Ok(())
 }
 
 fn run_telegram(command: TelegramCommand) -> Result<()> {
@@ -521,6 +580,52 @@ fn run_daemon_command(command: DaemonCommand) -> Result<()> {
             once,
             poll_interval_ms,
         } => daemon::run_daemon(once, poll_interval_ms, NETWORK_TIMEOUT),
+    }
+}
+
+fn run_launchd(command: LaunchdCommand) -> Result<()> {
+    match command {
+        LaunchdCommand::Render {
+            label,
+            repo,
+            bin,
+            path,
+            state_dir,
+            output,
+        } => {
+            let result = ops::render_launchd(LaunchdRenderOptions {
+                label,
+                repo,
+                bin,
+                path,
+                state_dir,
+                output,
+            })?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+            Ok(())
+        }
+        LaunchdCommand::Install {
+            label,
+            repo,
+            bin,
+            path,
+            state_dir,
+            no_bootstrap,
+        } => {
+            let result = ops::install_launchd(LaunchdInstallOptions {
+                render: LaunchdRenderOptions {
+                    label,
+                    repo,
+                    bin,
+                    path,
+                    state_dir,
+                    output: None,
+                },
+                no_bootstrap,
+            })?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+            Ok(())
+        }
     }
 }
 

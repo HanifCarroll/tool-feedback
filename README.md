@@ -21,6 +21,24 @@ State lives under `~/.codex/tool-feedback/`.
 
 ## Commands
 
+Run a full local health check:
+
+```bash
+cargo run -- doctor
+```
+
+Install the current binary into `~/.local/bin/tool-feedback` so agents can call it directly:
+
+```bash
+cargo run -- install
+```
+
+You can override the destination:
+
+```bash
+cargo run -- install --dest /custom/bin/tool-feedback
+```
+
 Initialize local config:
 
 ```bash
@@ -131,29 +149,32 @@ Secret and config files are written with user-only permissions on macOS and Linu
 
 ## Launchd
 
-Build the release binary:
+Build a release binary first if you want launchd to run the optimized executable:
 
 ```bash
 cargo build --release
+./target/release/tool-feedback install
 ```
 
-The repo ships a generic LaunchAgent template at `launchd/com.example.tool-feedback.plist.template`. Replace the placeholders before installing:
-
-- `__TOOL_FEEDBACK_LABEL__`
-- `__TOOL_FEEDBACK_BIN__`
-- `__TOOL_FEEDBACK_WORKDIR__`
-- `__TOOL_FEEDBACK_PATH__`
-- `__TOOL_FEEDBACK_STATE_DIR__`
-
-Typical install flow:
+Render a launchd plist without installing it:
 
 ```bash
-cp launchd/com.example.tool-feedback.plist.template ~/Library/LaunchAgents/com.example.tool-feedback.plist
-$EDITOR ~/Library/LaunchAgents/com.example.tool-feedback.plist
-launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.example.tool-feedback.plist 2>/dev/null || true
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.example.tool-feedback.plist
-launchctl kickstart -k gui/$(id -u)/com.example.tool-feedback
-launchctl print gui/$(id -u)/com.example.tool-feedback
+tool-feedback launchd render \
+  --label com.tool-feedback \
+  --repo /path/to/tool-feedback \
+  --bin "$(command -v tool-feedback)" \
+  --output ~/Library/LaunchAgents/com.tool-feedback.plist
 ```
 
-The daemon needs an explicit developer `PATH` in launchd so background `codex exec` workers can still find Node, Bun, and Cargo tools.
+Install and bootstrap the LaunchAgent directly:
+
+```bash
+tool-feedback launchd install \
+  --label com.tool-feedback \
+  --repo /path/to/tool-feedback \
+  --bin "$(command -v tool-feedback)"
+```
+
+Use `--no-bootstrap` if you only want the plist written under `~/Library/LaunchAgents/`.
+
+The daemon still needs an explicit developer `PATH` in launchd so background `codex exec` workers can find Node, Bun, and Cargo tools. `tool-feedback launchd render` and `tool-feedback launchd install` fill that in automatically unless you override `--path`.

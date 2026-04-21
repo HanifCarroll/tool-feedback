@@ -693,7 +693,7 @@ fn expected_case_status_for_run(run_kind: MaintainerRunKind) -> CaseStatus {
     }
 }
 
-fn resolve_codex_binary() -> Result<PathBuf> {
+pub(crate) fn resolve_codex_binary() -> Result<PathBuf> {
     if let Ok(value) = env::var("TOOL_FEEDBACK_CODEX_BIN") {
         let path = PathBuf::from(value.trim());
         if path.exists() {
@@ -757,6 +757,9 @@ fn discover_nvm_node_dir(home: &Path) -> Option<PathBuf> {
 
 fn append_path_segments(target: &mut Vec<String>, raw_path: &str) {
     for segment in raw_path.split(':').filter(|segment| !segment.is_empty()) {
+        if should_skip_path_segment(segment) {
+            continue;
+        }
         push_path_dir(target, segment.to_string());
     }
 }
@@ -765,6 +768,13 @@ fn push_path_dir(target: &mut Vec<String>, candidate: String) {
     if !candidate.is_empty() && !target.iter().any(|existing| existing == &candidate) {
         target.push(candidate);
     }
+}
+
+fn should_skip_path_segment(segment: &str) -> bool {
+    segment.contains("/.codex/tmp/")
+        || segment.contains("/codex-arg0")
+        || segment.contains("/target/debug/build/")
+        || segment.contains("/target/release/build/")
 }
 
 fn write_private_file(path: &Path, contents: &str) -> Result<()> {

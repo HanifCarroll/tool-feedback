@@ -27,6 +27,18 @@ pub(crate) fn state_dir_path() -> PathBuf {
     resolve_codex_home().join("tool-feedback")
 }
 
+pub(crate) fn home_dir_path() -> PathBuf {
+    resolve_home_dir()
+}
+
+pub(crate) fn local_bin_dir_path() -> PathBuf {
+    home_dir_path().join(".local/bin")
+}
+
+pub(crate) fn launch_agents_dir_path() -> PathBuf {
+    home_dir_path().join("Library/LaunchAgents")
+}
+
 pub(crate) fn config_path() -> PathBuf {
     state_dir_path().join("config.json")
 }
@@ -160,6 +172,12 @@ fn resolve_codex_home() -> PathBuf {
                 .map(|cwd| cwd.join(".codex"))
                 .unwrap_or_else(|_| PathBuf::from(".codex"))
         })
+}
+
+fn resolve_home_dir() -> PathBuf {
+    env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
 }
 
 #[cfg(test)]
